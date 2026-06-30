@@ -1,8 +1,6 @@
 import urllib.request, urllib.error, json, sys, io, time, re, os, ssl
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
-
-TOKEN = os.environ["GH_TOKEN"]
+TOKEN = os.environ.get("GH_TOKEN", "")
 HEADERS = {"Authorization": "token " + TOKEN, "User-Agent": "monitor-agent-v9"}
 API = "https://api.github.com/repos/zhangjiayang6835-cyber/ai-research"
 LEADERBOARD_COMMENT_ID = 4834744003
@@ -40,9 +38,12 @@ TIME_LIMIT_HOURS = {"easy": 3, "medium": 12, "hard": 24}
 
 ctx = ssl.create_default_context()
 
+def sanitize_log_message(value):
+    return str(value).replace("\r", "\\r").replace("\n", "\\n")
+
 def log(msg):
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
-    line = f"[{ts}] {msg}"
+    line = f"[{ts}] {sanitize_log_message(msg)}"
     print(line, flush=True)
     try:
         with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -345,81 +346,89 @@ def update_leaderboard(new_entry):
     post(url, {"body": new_body}, method="PATCH")
     log(f"[LEADER] {user} now has {existing[user]['score']} pts")
 
-known_comments = {}
-for i in ISSUES:
-    try:
-        comments = fetch(f"{API}/issues/{i}/comments")
-        known_comments[i] = set(c["id"] for c in comments)
-        log(f"[INIT] #{i}: {len(known_comments[i])} known")
-    except Exception as e:
-        log(f"[INIT ERR] #{i}: {e}")
-        known_comments[i] = set()
-    time.sleep(1)
+def main():
+    if not TOKEN:
+        raise RuntimeError("GH_TOKEN is required to run the monitor")
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
-log(f"=== MONITOR STARTED v9 ({len(ISSUES)} issues) ===")
+    known_comments = {}
+    for i in ISSUES:
+        try:
+            comments = fetch(f"{API}/issues/{i}/comments")
+            known_comments[i] = set(c["id"] for c in comments)
+            log(f"[INIT] #{i}: {len(known_comments[i])} known")
+        except Exception as e:
+            log(f"[INIT ERR] #{i}: {e}")
+            known_comments[i] = set()
+        time.sleep(1)
 
-cycle = 0
-while True:
-    try:
-        cycle += 1
-        log(f"=== Cycle {cycle} ===")
-        for issue_num in ISSUES:
-            try:
-                comments = fetch(f"{API}/issues/{issue_num}/comments")
-                current_ids = set(c["id"] for c in comments)
-                new_ids = current_ids - known_comments[issue_num]
-                if new_ids:
-                    log(f"[NEW] #{issue_num}: {len(new_ids)} new: {new_ids}")
-                    for c in comments:
-                        if c["id"] not in new_ids:
-                            continue
-                        author = c["user"]["login"]
-                        body = c["body"]
-                        if author == "zhangjiayang6835-cyber":
-                            log(f"[SKIP] #{issue_num} admin")
+    log(f"=== MONITOR STARTED v9 ({len(ISSUES)} issues) ===")
+
+    cycle = 0
+    while True:
+        try:
+            cycle += 1
+            log(f"=== Cycle {cycle} ===")
+            for issue_num in ISSUES:
+                try:
+                    comments = fetch(f"{API}/issues/{issue_num}/comments")
+                    current_ids = set(c["id"] for c in comments)
+                    new_ids = current_ids - known_comments[issue_num]
+                    if new_ids:
+                        log(f"[NEW] #{issue_num}: {len(new_ids)} new: {new_ids}")
+                        for c in comments:
+                            if c["id"] not in new_ids:
+                                continue
+                            author = c["user"]["login"]
+                            body = c["body"]
+                            if author == "zhangjiayang6835-cyber":
+                                log(f"[SKIP] #{issue_num} admin")
+                                known_comments[issue_num].add(c["id"])
+                                continue
+                            code_blocks = re.findall(r"```(?:python|javascript)\s*\n(.*?)```", body, re.DOTALL)
+                            if code_blocks:
+                                code = code_blocks[0]
+                                ok, msg = check_deadline(issue_num)
+                                if not ok:
+                                    reject = "超时拒绝"
+                                    post(f"{API}/issues/{issue_num}/comments", {"body": reject})
+                                    log(f"[REJECT] #{issue_num}: {author} (deadline passed)")
+                                    known_comments[issue_num].add(c["id"])
+                                    continue
+                                starred, star_msg = check_starred(author)
+                                if not starred:
+                                    reject = f"## ⭐ 提交被拒绝\n**提交者**: {author}\n**任务**: #{issue_num}\n**原因**: {star_msg}"
+                                    post(f"{API}/issues/{issue_num}/comments", {"body": reject})
+                                    log(f"[REJECT] #{issue_num}: {author} (not starred)")
+                                    known_comments[issue_num].add(c["id"])
+                                    continue
+                                log(f"[CODE] #{issue_num}: {author} ({len(code)}ch, {msg})")
+                                findings = cheat_detect(code)
+                                clean = len(findings) == 0
+                                sp = 0.0 if clean else min(max(f[1] for f in findings), 1.0)
+                                ct, total = build_evaluation(author, issue_num, findings, sp)
+                                post(f"{API}/issues/{issue_num}/comments", {"body": ct})
+                                submission_time = c["created_at"]
+                                log(f"[EVAL] #{issue_num}: {author} +{total}")
+                                save_training_data(author, issue_num, code, findings, sp, total)
+                                update_leaderboard({"user": author, "score": total, "issue": issue_num, "clean": clean})
+                                update_time_leaderboard(author, issue_num, submission_time)
+                            else:
+                                log(f"[SKIP] #{issue_num}: {author} (no code)")
                             known_comments[issue_num].add(c["id"])
-                            continue
-                        code_blocks = re.findall(r"```(?:python|javascript)\s*\n(.*?)```", body, re.DOTALL)
-                        if code_blocks:
-                            code = code_blocks[0]
-                            ok, msg = check_deadline(issue_num)
-                            if not ok:
-                                reject = "超时拒绝"
-                                post(f"{API}/issues/{issue_num}/comments", {"body": reject})
-                                log(f"[REJECT] #{issue_num}: {author} (deadline passed)")
-                                known_comments[issue_num].add(c["id"])
-                                continue
-                            starred, star_msg = check_starred(author)
-                            if not starred:
-                                reject = f"## ⭐ 提交被拒绝\n**提交者**: {author}\n**任务**: #{issue_num}\n**原因**: {star_msg}"
-                                post(f"{API}/issues/{issue_num}/comments", {"body": reject})
-                                log(f"[REJECT] #{issue_num}: {author} (not starred)")
-                                known_comments[issue_num].add(c["id"])
-                                continue
-                            log(f"[CODE] #{issue_num}: {author} ({len(code)}ch, {msg})")
-                            findings = cheat_detect(code)
-                            clean = len(findings) == 0
-                            sp = 0.0 if clean else min(max(f[1] for f in findings), 1.0)
-                            ct, total = build_evaluation(author, issue_num, findings, sp)
-                            r = post(f"{API}/issues/{issue_num}/comments", {"body": ct})
-                            submission_time = c["created_at"]
-                            log(f"[EVAL] #{issue_num}: {author} +{total}")
-                            save_training_data(author, issue_num, code, findings, sp, total)
-                            update_leaderboard({"user": author, "score": total, "issue": issue_num, "clean": clean})
-                            update_time_leaderboard(author, issue_num, submission_time)
-                        else:
-                            log(f"[SKIP] #{issue_num}: {author} (no code)")
-                        known_comments[issue_num].add(c["id"])
-                time.sleep(1.5)
-            except Exception as e:
-                log(f"[ERR] #{issue_num}: {e}")
-                import traceback
-                log(traceback.format_exc()[:200])
-                time.sleep(3)
-        log("Sleeping 30s...")
-        time.sleep(30)
-    except Exception as e:
-        log(f"[FATAL] {e}")
-        import traceback
-        log(traceback.format_exc()[:200])
-        time.sleep(30)
+                    time.sleep(1.5)
+                except Exception as e:
+                    log(f"[ERR] #{issue_num}: {e}")
+                    import traceback
+                    log(traceback.format_exc()[:200])
+                    time.sleep(3)
+            log("Sleeping 30s...")
+            time.sleep(30)
+        except Exception as e:
+            log(f"[FATAL] {e}")
+            import traceback
+            log(traceback.format_exc()[:200])
+            time.sleep(30)
+
+if __name__ == "__main__":
+    main()
