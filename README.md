@@ -197,6 +197,14 @@ cd eval-engine && pip install -e . && pytest tests/ -v
 
 本项目基于 MIT 许可证开源 — 详见 [LICENSE](LICENSE) 文件。
 
+
+## 🏆 排行榜
+
+![Leaderboard](docs/leaderboard.svg)
+
+> 💡 虚拟代币仅供学习排名使用，不可兑换为现金或加密货币。
+
+---
 ---
 
 ## 🌟 贡献
