@@ -1,0 +1,39 @@
+name: Auto-Rebase Conflicted PRs
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+jobs:
+  rebase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const { data: prs } = await github.rest.pulls.list({ owner, repo, state: "open", per_page: 30 });
+            const approved = prs.filter(p =>
+              (p.labels || []).some(l => l.name === "approved" || l.name === "auto-reviewed")
+            );
+            for (const pr of approved) {
+              const { data: detail } = await github.rest.pulls.get({ owner, repo, pull_number: pr.number });
+              if (detail.mergeable !== false) continue;
+              console.log("PR #" + pr.number + ": conflict detected, labeling...");
+              await github.rest.issues.addLabels({
+                issue_number: pr.number, owner, repo,
+                labels: ["auto-rebase"]
+              });
+              await github.rest.issues.createComment({
+                issue_number: pr.number, owner, repo,
+                body: "🔄 自动 Rebase 排队中，请勿在此期间推送新提交。如果 rebase 成功 Bot 会自动合并。"
+              });
+            }
+            console.log("Checked " + approved.length + " approved PRs");
