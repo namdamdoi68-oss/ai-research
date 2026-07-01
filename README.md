@@ -214,3 +214,5 @@ cd eval-engine && pip install -e . && pytest tests/ -v
 - [ai-training-gym 贡献指南](./ai-training-gym/README.md#-如何贡献)
 
 
+
+<!-- last-trigger: 2026-07-01T19:33:09.592960 -->
