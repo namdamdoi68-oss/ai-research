@@ -39,13 +39,6 @@ jobs:
               pull_number: prNum
             });
 
-            // Load shared cheat-detect engine
-            const { data: detectScript } = await github.rest.repos.getContent({
-              owner: context.repo.owner, repo: context.repo.repo,
-              path: ".github/scripts/cheat-detect.js"
-            });
-            eval(Buffer.from(detectScript.content, "base64").toString());
-
             // 1. CHEAT DETECTION on all changed files
             const allFindings = [];
             let totalAdditions = 0;
@@ -170,9 +163,7 @@ jobs:
             report += `| 目标 Issue | #${targetIssue} |\n`;
             report += `| **代币奖励** | **$${totalScore}** |\n\n`;
 
-            report += `---\n*🤖 自动审查 by AI Training Bot\n
-
-> 💡 虚拟代币仅供学习排名使用，不可兑换为现金或加密货币，也不可转账。感谢您的贡献！🎉感谢您的贡献！🚀*\n`;
+            report += `---\n*🤖 自动审查 by AI Training Bot*\n`;
 
 
             // 2. QUALITY MULTI-DIMENSION SCORING
@@ -210,7 +201,7 @@ jobs:
               qualityNotes.push("PR 过大 (>500 行), 建议人工复核 (-10)");
             }
 
-            // Check meaningful files changed (not just config/docs)
+            // Check meaningful files
             const meaningful = files.filter(f => !/\.(md|txt|json|yml|yaml|toml|cfg|ini)$/i.test(f.filename));
             if (meaningful.length === 0 && files.length > 0) {
               qualityScore -= 10;
@@ -218,37 +209,39 @@ jobs:
             }
 
             if (qualityNotes.length > 0) {
-              report += "\n### 📋 代码质量\n\n";
-              report += "| 检查项 | 扣分 |\n|:-----:|:----:|\n";
-              for (const n of qualityNotes) report += "| " + n.replace("(", "| (") + " |\n";
-              report += "| **总分** | **" + qualityScore + "/100** |\n\n";
+              report += "\\n### 📋 代码质量\\n\\n";
+              report += "| 检查项 | 扣分 |\\n|:-----:|:----:|\\n";
+              for (const n of qualityNotes) report += "| " + n.replace("(", "| (") + " |\\n";
+              report += "| **总分** | **" + qualityScore + "/100** |\\n\\n";
             } else {
-              report += "\n### 📋 代码质量\n\n✅ 质量检查全部通过 (100/100)\n\n";
+              report += "\\n### 📋 代码质量\\n\\n✅ 质量检查全部通过 (100/100)\\n\\n";
             }
 
             // Combined score
             const combinedScore = Math.round((score + qualityScore) / 2);
-            report += "**综合评分**: **" + combinedScore + "/100** (安全 " + score + " + 质量 " + qualityScore + ")\n\n";
+            report += "**综合评分**: **" + combinedScore + "/100** (安全 " + score + " + 质量 " + qualityScore + ")\\n\\n";
 
             // Auto-approve if both scores are high enough
-            if (score >= 80 && qualityScore >= 70 && !hasCheat && totalAdditions >= 5) {
-              if (!labels.includes("auto-reviewed")) {
-                await github.rest.issues.addLabels({
-                  issue_number: prNum, owner: context.repo.owner, repo: context.repo.repo,
-                  labels: ["auto-reviewed"]
-                });
+            if (score >= 80 && qualityScore >= 70 && !hasCheat) {
+              if (totalAdditions >= 5) {
+                if (!labels.includes("auto-reviewed")) {
+                  await github.rest.issues.addLabels({
+                    issue_number: prNum, owner: context.repo.owner, repo: context.repo.repo,
+                    labels: ["auto-reviewed"]
+                  });
+                }
+                if (!labels.includes("approved") && combinedScore >= 75) {
+                  await github.rest.issues.addLabels({
+                    issue_number: prNum, owner: context.repo.owner, repo: context.repo.repo,
+                    labels: ["approved"]
+                  });
+                }
+                report += "\\n✅ **自动审核通过** - 代码安全且质量达标，等待自动合并。\\n";
               }
-              if (!labels.includes("approved") && combinedScore >= 75) {
-                await github.rest.issues.addLabels({
-                  issue_number: prNum, owner: context.repo.owner, repo: context.repo.repo,
-                  labels: ["approved"]
-                });
-              }
-              report += "\n✅ **自动审核通过** — 代码安全且质量达标，等待自动合并。\n";
             } else if (hasCheat) {
-              report += "\n⛔ **检测到作弊行为** — 请人工审核。\n";
+              report += "\\n⛔ **检测到作弊行为** - 请人工审核。\\n";
             } else {
-              report += "\n🔍 **需要人工复核** — 安全评分 " + score + "/100，质量评分 " + qualityScore + "/100。\n";
+              report += "\\n🔍 **需要人工复核** - 安全评分 " + score + "/100，质量评分 " + qualityScore + "/100。\\n";
             }
 
             // Store results
