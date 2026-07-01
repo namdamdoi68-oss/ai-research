@@ -100,4 +100,5 @@ jobs:
 
             if (missing.length > 0) {
               core.setFailed("Missing workflows: " + missing.join(", "));
+              return;
             }

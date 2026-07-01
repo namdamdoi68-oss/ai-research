@@ -29,7 +29,6 @@ jobs:
             // Admin skip
             if (author === context.repo.owner) {
               console.log('Admin comment, skipping');
-              core.setFailed('Admin');
               return;
             }
 
@@ -37,6 +36,13 @@ jobs:
             const codeMatch = body.match(/```(?:python|javascript|py|js|java|go|rust|cpp|c\+\+|csharp|ruby|php|bash|sh|sql|html|xml|json|yaml|toml|typescript|ts|solidity)?\s*\n([\s\S]*?)```/);
             if (!codeMatch) {
               console.log('No code block found');
+              // Post friendly message instead of hard failing
+              await github.rest.issues.createComment({
+                issue_number: issueNum,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '## ❌ 代码块未找到\n\n请在你的评论中使用代码块 (\\'\'\' 或 \\'\'\'\'\'\') 包裹代码。\n\n示例: \n\\'\'\'python\nprint(\"fix\")\n\\'\'\'\n\n提交后机器人将自动评测。'
+              });
               core.setFailed('No code');
               return;
             }
