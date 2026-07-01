@@ -23,7 +23,7 @@ jobs:
               owner, repo, per_page: 20, status: "completed"
             });
 
-            const total = runs.workflow_runs.filter(r => r.conclusion !== "skipped" && r.conclusion !== "cancelled").length;
+            const total = runs.workflow_runs.filter(r => r.conclusion !== "skipped" && r.conclusion !== "cancelled" && r.conclusion !== "action_required").length;
             const success = runs.workflow_runs.filter(r => r.conclusion === "success").length;
             const failure = runs.workflow_runs.filter(r => r.conclusion === "failure").length;
             const successRate = total > 0 ? Math.round(success / total * 100) : 0;
