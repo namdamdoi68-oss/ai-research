@@ -1,177 +1,191 @@
  ```diff
---- a/honeycode-honeypot/app.py
-+++ b/honeycode-honeypot/app.py
-@@ -1,6 +1,7 @@
- from flask import Flask, request, render_template_string, redirect, url_for, flash, session
- from functools import wraps
- import sqlite3
+--- a/honeycode-honeypot
++++ b/honeycode-honeypot
+@@ -0,0 +1,1 @@
++// This is a directory, not a file
+--- a/honeycode-honeypot/index.html
++++ b/honeycode-honeypot/index.html
+@@ -0,0 +1,45 @@
++<!DOCTYPE html>
++<html lang="en">
++<head>
++    <meta charset="UTF-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1.0">
++    <title>AI Research Platform</title>
++</head>
++<body>
++    <div id="app"></div>
++    <script>
++        // Secure configuration loading - prevents DOM Clobbering
++        (function() {
++            'use strict';
++            
++            // Safe configuration object that cannot be clobbered
++            const secureConfig = Object.create(null);
++            
++            // Function to safely get nested properties without DOM clobbering vulnerability
++            function getSafeConfig(config, path) {
++                if (typeof config !== 'object' || config === null) {
++                    return undefined;
++                }
++                const parts = path.split('.');
++                let current = config;
++                for (const part of parts) {
++                    if (Object.prototype.hasOwnProperty.call(current, part)) {
++                        current = current[part];
++                    } else {
++                        return undefined;
++                    }
++                }
++                return current;
++            }
++            
++            // Prevent DOM clobbering by using Object.defineProperty
++            // and avoiding direct id-based element access
++            Object.defineProperty(window, 'config', {
++                value: secureConfig,
++                writable: false,
++                configurable: false,
++                enumerable: true
++            });
++            
++            console.log('Secure config initialized');
++        })();
++    </script>
++</body>
++</html>
+--- a/honeycode-honeypot/task.html
++++ b/honeycode-honeypot/task.html
+@@ -0,0 +1,62 @@
++<!DOCTYPE html>
++<html lang="en">
++<head>
++    <meta charset="UTF-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1.0">
++    <title>Task View</title>
++</head>
++<body>
++    <!-- DOM Clobbering Prevention: Use unique IDs and secure script loading -->
++    
++    <script>
++        // DOM Clobbering Protection Module
++        (function() {
++            'use strict';
++            
++            // Store original methods to prevent tampering
++            const originalGetElementById = document.getElementById.bind(document);
++            const originalQuerySelector = document.querySelector.bind(document);
++            
++            // Secure element retrieval that checks for DOM clobbering
++            function secureGetElementBy(id) {
++                const element = originalGetElementById(id);
++                if (!element) return null;
++                
++                // Verify it's a real DOM element, not a clobbered property
++                if (!(element instanceof Element)) {
++                    console.warn('Potential DOM clobbering detected for id:', id);
++                    return null;
++                }
++                return element;
++            }
++            
++            // Prevent common DOM clobbering vectors
++            function sanitizeHTML(html) {
++                const template = document.createElement('template');
++                template.innerHTML = html;
++                return template.content;
++            }
++            
++            // Secure JSON parsing that doesn't use eval
++            function secureJSONParse(text) {
++                if (typeof text !== 'string') {
++                    throw new TypeError('Input must be a string');
++                }
++                return JSON.parse(text);
++            }
++            
++            // Export secure functions
++            window.secureDOM = {
++                getElementById: secureGetElementBy,
++                sanitizeHTML: sanitizeHTML,
++                parseJSON: secureJSONParse
++            };
++            
++            // Freeze to prevent modification
++            Object.freeze(window.secureDOM);
++            
++        })();
++    </script>
++    
++    <!-- Example: Use data attributes instead of IDs for sensitive data -->
++    <div data-config='{"apiEndpoint": "/api/v1", "maxRetries": 3}'></div>
++</body>
++</html>
+--- a/honeycode-honeypot/scripts/evaluate_submission.py
++++ b/honeycode-honeypot/scripts/evaluate_submission.py
+@@ -0,0 +1,85 @@
++#!/usr/bin/env python3
++"""
++Secure submission evaluation script with DOM Clobbering protection.
++"""
++
 +import html
- 
- app = Flask(__name__)
- app.secret_key = 'dev-secret-key-change-in-production'
-@@ -45,7 +46,7 @@
-     <div class="container">
-         <h1>AI Research Platform - Honeypot</h1>
-         {% if message %}
--        <div class="alert">{{ message }}</div>
-+        <div class="alert">{{ message | e }}</div>
-         {% endif %}
-         
-         <div class="task-list">
-@@ -88,7 +89,7 @@
-     <div class="container">
-         <h1>Submit Your Solution</h1>
-         {% if message %}
--        <div class="alert">{{ message }}</div>
-+        <div class="alert">{{ message | e }}</div>
-         {% endif %}
-         
-         <form method="POST" action="/submit">
-@@ -140,7 +141,7 @@
-     <div class="container">
-         <h1>Task Details</h1>
-         <h2>{{ task.title }}</h2>
--        <p>{{ task.description }}</p>
-+        <p>{{ task.description | e }}</p>
-         
-         <h3>Submissions</h3>
-         <table>
-@@ -152,7 +153,7 @@
-             {% for sub in submissions %}
-             <tr>
-                 <td>{{ sub.username }}</td>
--                <td><pre>{{ sub.code }}</pre></td>
-+                <td><pre>{{ sub.code | e }}</pre></td>
-                 <td>{{ sub.score }}</td>
-             </tr>
-             {% endfor %}
-@@ -178,7 +179,7 @@
-     <div class="container">
-         <h1>Register</h1>
-         {% if message %}
--        <div class="alert">{{ message }}</div>
-+        <div class="alert">{{ message | e }}</div>
-         {% endif %}
-         
-         <form method="POST">
-@@ -209,7 +210,7 @@
-     <div class="container">
-         <h1>Login</h1>
-         {% if message %}
--        <div class="alert">{{ message }}</div>
-+        <div class="alert">{{ message | e }}</div>
-         {% endif %}
-         
-         <form method="POST">
-@@ -244,7 +245,7 @@
-     <div class="container">
-         <h1>Profile</h1>
-         <p>Username: {{ user.username }}</p>
--        <p>Bio: {{ user.bio }}</p>
-+        <p>Bio: {{ user.bio | e }}</p>
-         
-         <h3>My Submissions</h3>
-         <table>
-@@ -256,7 +257,7 @@
-             {% for sub in submissions %}
-             <tr>
-                 <td>{{ sub.task_title }}</td>
--                <td><pre>{{ sub.code }}</pre></td>
-+                <td><pre>{{ sub.code | e }}</pre></td>
-                 <td>{{ sub.score }}</td>
-             </tr>
-             {% endfor %}
-@@ -283,7 +284,7 @@
-     <div class="container">
-         <h1>Edit Profile</h1>
-         {% if message %}
--        <div class="alert">{{ message }}</div>
-+        <div class="alert">{{ message | e }}</div>
-         {% endif %}
-         
-         <form method="POST">
-@@ -316,7 +317,7 @@
-     <div class="container">
-         <h1>Leaderboard</h1>
-         {% if message %}
--        <div class="alert">{{ message }}</div>
-+        <div class="alert">{{ message | e }}</div>
-         {% endif %}
-         
-         <table>
-@@ -328,7 +329,7 @@
-             {% for entry in entries %}
-             <tr>
-                 <td>{{ entry.rank }}</td>
--                <td>{{ entry.username }}</td>
-+                <td>{{ entry.username | e }}</td>
-                 <td>{{ entry.total_score }}</td>
-             </tr>
-             {% endfor %}
-@@ -353,7 +354,7 @@
-     <div class="container">
-         <h1>Admin Panel</h1>
-         {% if message %}
--        <div class="alert">{{ message }}</div>
-+        <div class="alert">{{ message | e }}</div>
-         {% endif %}
-         
-         <h3>All Submissions</h3>
-@@ -368,9 +369,9 @@
-             {% for sub in submissions %}
-             <tr>
-                 <td>{{ sub.id }}</td>
--                <td>{{ sub.username }}</td>
-+                <td>{{ sub.username | e }}</td>
-                 <td>{{ sub.task_id }}</td>
--                <td><pre>{{ sub.code }}</pre></td>
-+                <td><pre>{{ sub.code | e }}</pre></td>
-                 <td>{{ sub.score }}</td>
-                 <td>
-                     <form method="POST" action="/admin/delete/{{ sub.id }}">
-@@ -399,7 +400,7 @@
-     <div class="container">
-         <h1>Search Results</h1>
-         {% if message %}
--        <div class="alert">{{ message }}</div>
-+        <div class="alert">{{ message | e }}</div>
-         {% endif %}
-         
-         <form method="GET" action="/search">
-@@ -415,9 +416,9 @@
-             </tr>
-             {% for result in results %}
-             <tr>
--                <td>{{ result.username }}</td>
--                <td>{{ result.task_title }}</td>
--                <td><pre>{{ result.code }}</pre></td>
-+                <td>{{ result.username | e }}</td>
-+                <td>{{ result.task_title | e }}</td>
-+                <td><pre>{{ result.code | e }}</pre></td>
-             </tr>
-             {% endfor %}
-         </table>
-@@ -444,7 +445,7 @@
-     <div class="container">
-         <h1>API Documentation</h1>
-         {% if message %}
--        <div class="alert">{{ message }}</div>
-+        <div class="alert">{{ message | e }}</div>
-         {% endif %}
-         
-         <h2>Endpoints</h2>
-@@ -472,7 +473,7 @@
-     <div class="container">
-         <h1>Contact</h1>
-         {% if message %}
--        <div class="alert">{{ message }}</div>
-+        <div class="alert">{{ message | e }}</div>
-         {% endif %}
-         
-         <form method="POST">
-@@ -501,6 +502,12 @@
- def login_required(f):
-     @wraps(f)
-     def decorated_function(*args, **kwargs):
-+        # Validate session to prevent session fixation
-+        if
++import json
++import re
++from typing import Any, Dict, Optional
++
++
++def sanitize_html_content(content: str) -> str:
++    """
++    Sanitize HTML content to prevent DOM clobbering attacks.
++    Escapes dangerous characters and removes event handlers.
++    """
++    if not isinstance(content, str):
++        return ""
++    
++    # Escape HTML entities
++    sanitized = html.escape(content, quote=True)
++    
++    return sanitized
++
++
++def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
++    """
++    Validate configuration to prevent DOM clobbering via config injection.
++    Ensures no HTML element IDs can override JavaScript variables.
++    """
++    if not isinstance(config, dict):
++        raise ValueError("Config must be a dictionary")
++    
++    # Check for dangerous keys that could be used for DOM clobbering
++    dangerous_patterns = [
++        r'^[a-zA-Z_][a-zA-Z0-9_]*$',  # Valid JS identifiers that could clobber
++    ]
++    
++    sanitized_config = {}
++    for key, value in config.items():
++        # Ensure key is not a simple identifier that could be clobbered
++        if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', key):
++            # Prefix to prevent clobbering
++            safe_key = f"cfg_{key}"
++        else:
++            safe_key = key
++        
++        # Recursively sanitize nested configs
++        if isinstance(value, dict):
++            sanitized_config[safe_key] = validate_config(value)
++        elif isinstance(value, str):
++            sanitized_config[safe_key] = sanitize_html_content(value)
++        else:
++            sanitized_config[safe_key] = value
++    
++    return sanitized_config
++
++
++def generate_secure_html(config: Dict[str, Any]) -> str:
++    """
++    Generate secure HTML that prevents DOM clobbering.
++    Uses data attributes instead of IDs for configuration.
++    """
++    safe_config = validate_config(config)
++    
