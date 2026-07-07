@@ -94,30 +94,25 @@ jobs:
             let response;
             const disclaimer = '\\n\\n> \\u2728 \\u865a\\u62df\\u4ee3\\u5e01\\u4ec5\\u4f9b\\u5b66\\u4e60\\u6392\\u540d\\u4f7f\\u7528\\uff0c\\u4e0d\\u53ef\\u5151\\u6362\\u4e3a\\u73b0\\u91d1\\u6216\\u52a0\\u5bc6\\u8d27\\u5e01\\u3002\\u611f\\u8c22\\u8d21\\u732e\\uff01';
             if (clean) {
-              response = `## ✅ Evaluation Passed
-
-Submitter (bold): @${author}
-Task (bold): #${issueNum}
-Difficulty (bold): ${diff}
-Score (bold): ${total}/${baseScore}
-
-No suspicious patterns detected, submission accepted.${disclaimer}`;
+              response = '## ✅ Evaluation Passed\n\n' +
+                `Submitter (bold): @${author}\n` +
+                `Task (bold): #${issueNum}\n` +
+                `Difficulty (bold): ${diff}\n` +
+                `Score (bold): ${total}/${baseScore}\n\n` +
+                `No suspicious patterns detected, submission accepted.${disclaimer}`;
             } else {
               const details = findings.map(f =>
                 `| ${f.name} | ${Math.floor(f.conf * 100)}% | ${f.desc} |`
               ).join('\\n');
-              response = `## ⚠️ Suspicious Patterns Detected
-
-Submitter (bold): @${author}
-Task (bold): #${issueNum}
-Suspicion Level (bold): ${deduction}%
-
-| Pattern | Confidence | Description |
-|:------:|:----------:|:----------:|
-${details}
-
-Final Score (bold): ${total}/${baseScore}
-> If this is a false positive, please contact admin.${disclaimer}`;
+              response = '## ⚠️ Suspicious Patterns Detected\n\n' +
+                `Submitter (bold): @${author}\n` +
+                `Task (bold): #${issueNum}\n` +
+                `Suspicion Level (bold): ${deduction}%\n\n` +
+                '| Pattern | Confidence | Description |\n' +
+                '|:------:|:----------:|:----------:|\n' +
+                `${details}\n\n` +
+                `Final Score (bold): ${total}/${baseScore}\n` +
+                `> If this is a false positive, please contact admin.${disclaimer}`;
             }
 
             // Post evaluation
